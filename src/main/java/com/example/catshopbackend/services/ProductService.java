@@ -19,7 +19,7 @@ public class ProductService {
         return productMapper.toDTOList(productRepository.findAll());
     }
 
-    public Optional<ProductDTO> getProductById(Integer id) {
+    public Optional<ProductDTO> getProductById(Long id) {
         return productRepository.findById(id)
                 .map(productMapper::toDTO);
     }

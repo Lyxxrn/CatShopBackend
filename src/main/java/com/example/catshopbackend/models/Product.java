@@ -15,7 +15,7 @@ import java.util.List;
 public class Product {
 
     @Id
-    private int id; // resembles the product barcode
+    private Long id; // resembles the product barcode
 
     private String name;
     private String description;

@@ -98,7 +98,6 @@ public class PrintingService {
                             receiptData.getTotalItems(), receiptData.getTotalAmount()))
                     .writeLF(receiptData.getSeperatorStrong())
                     .writeLF(String.format("MwSt. (19%%)  %.2f EUR", mwst))
-                    .writeLF(String.format("Gesamt inkl. MwSt. %.2f EUR", totalWithTax))
                     .writeLF(receiptData.getSeperatorStrong())
                     .writeLF("Zahlungsmethode: " + receiptData.getPaymentMethod())
                     .writeLF(receiptData.getSeperatorStrong())

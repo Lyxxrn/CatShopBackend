@@ -57,20 +57,6 @@ public class BasketController {
         return ResponseEntity.ok(basketService.removeSpecificFromBasket(product));
     }
 
-    @PostMapping("/applyCoupon/{couponCode}")
-    public ResponseEntity<?> applyCoupon(@PathVariable int couponCode) {
-        try {
-            return ResponseEntity.ok(basketService.applyCoupon(couponCode));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("Dieser Gutschein wurde bereits eingelöst")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-            }
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
     @PostMapping("/complete")
     public ResponseEntity<Boolean> completeBasket() {
         return ResponseEntity.ok(basketService.completeBasket());

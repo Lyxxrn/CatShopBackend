@@ -1,24 +1,31 @@
 package com.example.catshopbackend.services;
 
+import com.example.catshopbackend.dto.ProductDTO;
+import com.example.catshopbackend.factory.ProductFactory;
+import com.example.catshopbackend.services.payment.CashPaymentStrategy;
+import com.example.catshopbackend.services.payment.PaymentContext;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import com.example.catshopbackend.dto.ProductDTO;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class BasketService {
     public ArrayList<ProductDTO> basket = new ArrayList<>();
-    private final PrintingServiceTest printingService;
+    private final PrintingService printingService;
+    private final PaymentContext paymentContext;
+
+    @PostConstruct
+    public void init() {
+        paymentContext.setPaymentStrategy(new CashPaymentStrategy());
+    }
 
     private ProductDTO nullifyTransaction(ProductDTO productToBeNullified) {
-        productToBeNullified.setPrice(productToBeNullified.getPrice()*-1);
-        return productToBeNullified;
+        return ProductFactory.createStornoProduct(productToBeNullified);
     }
 
     public ArrayList<ProductDTO> addToBasket(ProductDTO product) {
@@ -53,15 +60,22 @@ public class BasketService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String cashierName = authentication.getName();
 
+        double totalAmount = calculateBasketTotal();
         ArrayList<ProductDTO> basketCopy = new ArrayList<>(basket);
 
-        // Payment method (could be dynamic later)
-        String paymentMethod = "Barzahlung";
+        boolean paymentSuccessful = paymentContext.executePayment(totalAmount);
 
-        printingService.printReceipt("POS-58", cashierName, paymentMethod, basketCopy);
+        if (paymentSuccessful) {
+            // Get the payment method name from the strategy
+            String paymentMethod = paymentContext.getPaymentMethodName();
 
-        System.out.println(basketCopy);
-        basket.clear();
-        return true;
+            printingService.printReceipt("POS-58", cashierName, paymentMethod, basketCopy);
+
+            System.out.println(basketCopy);
+            basket.clear();
+            return true;
+        } else {
+            return false;
+        }
     }
 }

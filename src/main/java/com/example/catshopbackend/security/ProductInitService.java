@@ -1,14 +1,14 @@
 package com.example.catshopbackend.security;
 
-        import com.example.catshopbackend.models.Product;
-        import com.example.catshopbackend.models.Tag;
-        import com.example.catshopbackend.repositories.ProductRepository;
-        import jakarta.annotation.PostConstruct;
-        import lombok.RequiredArgsConstructor;
-        import org.springframework.stereotype.Service;
+import com.example.catshopbackend.models.Product;
+import com.example.catshopbackend.models.Tag;
+import com.example.catshopbackend.repositories.ProductRepository;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
-        import java.util.Arrays;
-        import java.util.List;
+import java.util.Arrays;
+import java.util.List;
 
         @Service
         @RequiredArgsConstructor

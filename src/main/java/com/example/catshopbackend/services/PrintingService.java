@@ -20,91 +20,6 @@ import java.util.logging.Logger;
 @Service
 public class PrintingService {
 
-    // helpers to build receipts
-    private final String seperatorStrong = "============================";
-    private final String seperatorStrongTitle = "================";
-    private final String seperatorWeak = "----------------------------";
-    private final String[] titleParts = {
-            // needs to be manually centered
-            "HealthyCat Shop",
-            "Dein Lieblingsladen für",
-            "Katzen"
-    };
-    private final String[] catImgParts = {
-            " /\\_/\\ ",
-            "(=^.^=)",
-            "(\\\")_(\\\")",
-            " /   \\ ",
-            "(     )",
-            "(___(__)"
-    };
-
-    private static StringBuilder receipt = new StringBuilder();
-    private static StringBuilder stornos = new StringBuilder();
-    private static double totalAmount = 0.0;
-    private static int totalItems = 0;
-
-    /**
-     * Adds a product to the receipt
-     * @param product the ProductDTO to be added
-     * @param quantity quantity
-     */
-    public static void addProductToReceipt(ProductDTO product, int quantity) {
-        String name = product.getName();
-        double price = product.getPrice();
-        StringBuilder target = price < 0 ? stornos : receipt;
-
-        double total = price * quantity;
-        totalAmount += total;
-
-        if (price > 0) {
-            totalItems += quantity;
-        }
-
-        // Format product name to max. 8 characters
-        String formattedName = name.length() > 7 ? name.substring(0, 6) + "." : name;
-        String formattedPrice = price < 0 ?
-                String.format("%.2f EUR", price) :
-                String.format("%.2f EUR", price);
-        String formattedTotal = price < 0 ?
-                String.format("%.2f EUR", total) :
-                String.format("%.2f EUR", total);
-
-        // Format: "Name Price Quantity Total"
-        target.append(String.format("%-8s %6s %3d %7s",
-                        formattedName, formattedPrice, quantity, formattedTotal))
-                .append("\n");
-    }
-
-    /**
-     * Processes a list of products for the receipt, grouping identical products
-     * @param products the list of ProductDTO objects
-     */
-    public void processProductsForReceipt(ArrayList<ProductDTO> products) {
-        // Reset receipt data
-        receipt = new StringBuilder();
-        stornos = new StringBuilder();
-        totalAmount = 0.0;
-        totalItems = 0;
-
-        // Group products by ID and price (to separate regular and storno items)
-        Map<String, ProductCount> productMap = new HashMap<>();
-
-        for (ProductDTO product : products) {
-            // Unique key combining ID and price to separate stornos from regular items
-            String key = product.getId() + "_" + product.getPrice();
-            productMap.putIfAbsent(key, new ProductCount(product, 0));
-
-            ProductCount count = productMap.get(key);
-            count.incrementQuantity();
-        }
-
-        // Add each product with its quantity to the receipt
-        for (ProductCount productCount : productMap.values()) {
-            addProductToReceipt(productCount.getProduct(), productCount.getQuantity());
-        }
-    }
-
     /**
      * Prints the receipt with all added products
      * @param printerName name of the printer
@@ -118,8 +33,13 @@ public class PrintingService {
         for (PrintService printer : printServices) {
             System.out.println(" - " + printer.getName());
         }
-        // Process products first
-        processProductsForReceipt(products);
+
+        // Use the ReceiptBuilder
+        ReceiptBuilder.ReceiptData receiptData = new ReceiptBuilder()
+                .withCashier(cashierName)
+                .withPaymentMethod(paymentMethod)
+                .withProducts(products)
+                .build();
 
         PrintService printService = PrinterOutputStream.getPrintServiceByName(printerName);
         EscPos escpos;
@@ -138,89 +58,66 @@ public class PrintingService {
                     .setBold(true);
 
             // Header
-            escpos.writeLF(title, seperatorStrongTitle);
-            for (String line : titleParts) {
+            escpos.writeLF(title, receiptData.getSeperatorStrongTitle());
+            for (String line : receiptData.getTitleParts()) {
                 escpos.writeLF(title, line);
             }
-            escpos.writeLF(title, seperatorStrongTitle);
+            escpos.writeLF(title, receiptData.getSeperatorStrongTitle());
 
             // Cat image
-            for (String line : catImgParts) {
+            for (String line : receiptData.getCatImgParts()) {
                 escpos.writeLF(catImg, line);
             }
 
             // Date and cashier information
-            escpos.writeLF(seperatorStrong)
+            escpos.writeLF(receiptData.getSeperatorStrong())
                     .writeLF("Datum: " + java.time.LocalDate.now())
                     .writeLF("Uhrzeit: " + java.time.LocalTime.now().withNano(0))
-                    .writeLF("Kassierer: " + cashierName) // Already the SCO# username from authentication
-                    .writeLF(seperatorStrong)
+                    .writeLF("Kassierer: " + receiptData.getCashierName())
+                    .writeLF(receiptData.getSeperatorStrong())
                     .writeLF("Artikel   Preis Menge Total")
-                    .writeLF(seperatorWeak);
+                    .writeLF(receiptData.getSeperatorWeak());
 
             // Regular product items
-            escpos.write(receipt.toString());
+            escpos.write(receiptData.getReceiptContent());
 
             // Stornos if any
-            if (stornos.length() > 0) {
-                escpos.writeLF(seperatorWeak)
+            if (!receiptData.getStornosContent().isEmpty()) {
+                escpos.writeLF(receiptData.getSeperatorWeak())
                         .writeLF(bold, "STORNIERTE ARTIKEL")
-                        .writeLF(seperatorWeak)
-                        .write(stornos.toString());
+                        .writeLF(receiptData.getSeperatorWeak())
+                        .write(receiptData.getStornosContent());
             }
 
             // Total
-            double mwst = totalAmount * 0.19;
-            double totalWithTax = totalAmount + mwst;
+            double mwst = receiptData.getTotalAmount() * 0.19;
+            double totalWithTax = receiptData.getTotalAmount() + mwst;
 
-            escpos.writeLF(seperatorWeak)
-                    .writeLF(bold, String.format("Gesamt          %2d %7.2f EUR", totalItems, totalAmount))
-                    .writeLF(seperatorStrong)
+            escpos.writeLF(receiptData.getSeperatorWeak())
+                    .writeLF(bold, String.format("Gesamt          %2d %7.2f EUR",
+                            receiptData.getTotalItems(), receiptData.getTotalAmount()))
+                    .writeLF(receiptData.getSeperatorStrong())
                     .writeLF(String.format("MwSt. (19%%)  %.2f EUR", mwst))
                     .writeLF(String.format("Gesamt inkl. MwSt. %.2f EUR", totalWithTax))
-                    .writeLF(seperatorStrong)
-                    .writeLF("Zahlungsmethode: " + paymentMethod)
-                    .writeLF(seperatorStrong)
+                    .writeLF(receiptData.getSeperatorStrong())
+                    .writeLF("Zahlungsmethode: " + receiptData.getPaymentMethod())
+                    .writeLF(receiptData.getSeperatorStrong())
                     .writeLF("Vielen Dank für Ihren Einkauf!")
                     .writeLF("Besuchen Sie uns bald wieder im")
                     .writeLF("HealthyCat Shop!")
-                    .writeLF(seperatorStrong)
+                    .writeLF(receiptData.getSeperatorStrong())
                     .writeLF("HealthyCat Shop")
                     .writeLF("Musterstraße 123")
                     .writeLF("12345 Musterstadt")
                     .writeLF("Tel: 01234 56789")
-                    .writeLF(seperatorStrong)
+                    .writeLF(receiptData.getSeperatorStrong())
                     .feed(5)
                     .cut(EscPos.CutMode.FULL);
 
             escpos.close();
 
-            // Reset receipt data after printing
-            receipt = new StringBuilder();
-            stornos = new StringBuilder();
-            totalAmount = 0.0;
-            totalItems = 0;
-
         } catch (IOException ex) {
             Logger.getLogger(PrintingService.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
-
-    /**
-     * Helper class for counting product quantity
-     */
-    @Getter
-    private static class ProductCount {
-        private ProductDTO product;
-        private int quantity;
-
-        public ProductCount(ProductDTO product, int quantity) {
-            this.product = product;
-            this.quantity = quantity;
-        }
-
-        public void incrementQuantity() {
-            this.quantity++;
         }
     }
 }
